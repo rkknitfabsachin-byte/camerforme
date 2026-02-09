@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fabric Camera</title>
+
+<style>
+:root{
+  --bg:#0a0a0b;
+  --glass:rgba(255,255,255,0.08);
+  --accent:#4ade80;
+  --danger:#ef4444;
+  --text:#ffffff;
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont;
+  background:linear-gradient(180deg,#000,#111);
+  color:var(--text);
+}
+
+.app{
+  max-width:420px;
+  margin:auto;
+  padding:14px;
+}
+
+.card{
+  background:var(--glass);
+  backdrop-filter:blur(18px);
+  border-radius:20px;
+  padding:14px;
+  margin-bottom:14px;
+}
+
+video,img{
+  width:100%;
+  border-radius:16px;
+}
+
+.hidden{display:none}
+
+.row{
+  display:flex;
+  gap:10px;
+}
+
+button{
+  width:100%;
+  padding:14px;
+  border:none;
+  border-radius:14px;
+  font-size:16px;
+  font-weight:600;
+  cursor:pointer;
+}
+
+.primary{background:var(--accent);color:#000}
+.secondary{background:#1f2933;color:#fff}
+.danger{background:var(--danger);color:#fff}
+
+input{
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  border-radius:12px;
+  border:none;
+  background:rgba(255,255,255,0.12);
+  color:#fff;
+  font-size:15px;
+}
+
+input::placeholder{color:#cbd5e1}
+
+.loader{
+  text-align:center;
+  font-size:14px;
+  opacity:.85;
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- CAMERA CARD -->
+  <div class="card">
+    <video id="video" autoplay playsinline></video>
+    <div class="row" style="margin-top:12px">
+      <button class="secondary" onclick="switchCamera()">🔄</button>
+      <button class="primary" onclick="capture()">📸 Capture</button>
+    </div>
+  </div>
+
+  <!-- PREVIEW + FORM -->
+  <div class="card hidden" id="formCard">
+    <img id="preview" />
+
+    <input id="fabricName" placeholder="Fabric Name" />
+    <input id="category" placeholder="Category (Cotton / Rib)" />
+    <input id="gsm" placeholder="GSM" />
+    <input id="color" placeholder="Color" />
+    <input id="party" placeholder="Party" />
+    <input id="notes" placeholder="Notes" />
+
+    <div class="row" style="margin-top:12px">
+      <button class="secondary" onclick="retake()">🔁 Retake</button>
+      <button class="primary" onclick="upload()">☁️ Save</button>
+    </div>
+
+    <div class="loader hidden" id="loader">Uploading…</div>
+  </div>
+
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbzvAJxqfHkqYHGMVa4t42Ghoa7l8wQQdkIdPB2rmKDn4YkxnxiqMlE_LEDhwzEVasWg/exec";
+
+const video = document.getElementById("video");
+const canvas = document.createElement("canvas");
+const preview = document.getElementById("preview");
+const formCard = document.getElementById("formCard");
+const loader = document.getElementById("loader");
+
+let currentFacing = "environment";
+let stream;
+let imageBase64 = "";
+
+/* CAMERA INIT */
+async function startCamera(){
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({
+    video:{facingMode:{ideal:currentFacing}}
+  });
+  video.srcObject = stream;
+}
+startCamera();
+
+/* SWITCH CAMERA */
+function switchCamera(){
+  currentFacing = currentFacing === "environment" ? "user" : "environment";
+  startCamera();
+}
+
+/* CAPTURE */
+function capture(){
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video,0,0);
+  const dataUrl = canvas.toDataURL("image/jpeg",0.9);
+  imageBase64 = dataUrl.split(",")[1];
+  preview.src = dataUrl;
+  formCard.classList.remove("hidden");
+}
+
+/* RETAKE */
+function retake(){
+  formCard.classList.add("hidden");
+  imageBase64 = "";
+}
+
+/* UPLOAD */
+async function upload(){
+  if(!imageBase64){
+    alert("Capture image first");
+    return;
+  }
+
+  loader.classList.remove("hidden");
+
+  const payload = {
+    imageBase64,
+    fabricName: fabricName.value,
+    category: category.value,
+    gsm: gsm.value,
+    color: color.value,
+    party: party.value,
+    notes: notes.value
+  };
+
+  try{
+    const res = await fetch(API_URL,{
+      method:"POST",
+      body:JSON.stringify(payload)
+    });
+    const json = await res.json();
+
+    loader.classList.add("hidden");
+
+    if(json.success){
+      alert("Saved successfully ✅");
+      location.reload();
+    }else{
+      alert(json.error || "Upload failed");
+    }
+  }catch(e){
+    loader.classList.add("hidden");
+    alert("Network error");
+  }
+}
+</script>
+
+</body>
+</html>
